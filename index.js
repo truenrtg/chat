@@ -1,8 +1,8 @@
+// index.js
 const express = require('express');
-const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const dotenv = require('dotenv');
-const FaqIntent = require('./db'); // 몽고DB 모델
+const FaqIntent = require('./db'); // 수정한 db.js 불러오기
 
 dotenv.config();
 
@@ -11,21 +11,13 @@ app.use(bodyParser.json());
 
 const PORT = 3000;
 
-// MongoDB 연결
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('✅ MongoDB 연결 성공'))
-.catch(err => console.error('❌ MongoDB 연결 실패:', err));
-
 // Webhook 엔드포인트
 app.post('/webhook', async (req, res) => {
   try {
     const userMessage = req.body.userRequest.utterance;
     console.log('🔵 사용자 메시지:', userMessage);
 
-    // MongoDB에서 질문예시 배열에 포함되는지 검색
+    // MongoDB에서 질문 매칭
     const faq = await FaqIntent.findOne({ 질문예시: { $in: [userMessage] } });
 
     if (faq) {
@@ -48,16 +40,15 @@ app.post('/webhook', async (req, res) => {
           outputs: [
             {
               simpleText: {
-                text: "죄송합니다. 해당 질문에 대한 답변을 찾을 수 없습니다."
+                text: "죄송합니다. 해당 질문에 대한 답변이 없습니다."
               }
             }
           ]
         }
       });
     }
-
   } catch (error) {
-    console.error(error);
+    console.error('❌ 서버 오류:', error);
     res.status(500).send('Internal Server Error');
   }
 });
