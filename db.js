@@ -1,25 +1,20 @@
-// db.js
-const mongoose = require('mongoose');
+const { MongoClient } = require('mongodb');
 require('dotenv').config();
 
-// MongoDB 연결
-mongoose.connect(process.env.MONGODB_URI, {
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true
-})
-.then(() => console.log('✅ MongoDB 연결 성공'))
-.catch(err => console.error('❌ MongoDB 연결 실패:', err));
-
-// FAQ 질문/응답 스키마 정의
-const FaqIntentSchema = new mongoose.Schema({
-  intent: String,
-  질문예시: [String],  // 질문 리스트
-  응답: String,
-  부서: String,
-  담당자: String,
-  전화번호: String
 });
 
-// mongoose 모델 생성 및 export
-const FaqIntent = mongoose.model('FaqIntent', FaqIntentSchema);
-module.exports = FaqIntent;
+async function connectDB() {
+  try {
+    await client.connect();
+    console.log('✅ MongoDB 연결 성공');
+    return client.db('chatbot').collection('faq_intents');
+  } catch (err) {
+    console.error('❌ MongoDB 연결 실패:', err.message);
+  }
+}
+
+module.exports = connectDB;
