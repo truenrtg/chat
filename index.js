@@ -1,53 +1,68 @@
 const express = require('express');
-const axios = require('axios');
-const connectDB = require('./db');
-require('dotenv').config();
+const mongoose = require('mongoose');
+const bodyParser = require('body-parser');
+const dotenv = require('dotenv');
+const FaqIntent = require('./db'); // 몽고DB 모델
+
+dotenv.config();
 
 const app = express();
-app.use(express.json());
+app.use(bodyParser.json());
 
-// 서버 시작 시 연결 확인
-connectDB();
+const PORT = 3000;
 
+// MongoDB 연결
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('✅ MongoDB 연결 성공'))
+.catch(err => console.error('❌ MongoDB 연결 실패:', err));
+
+// Webhook 엔드포인트
 app.post('/webhook', async (req, res) => {
-  const userMsg = req.body.userRequest.utterance;
-  console.log('📩 사용자 메시지:', userMsg);
-
-  const collection = await connectDB();
-
-  // ✅ FastAPI KoBERT 서버에 요청 보내기
-  let intent = "기타";
   try {
-    const response = await axios.post('http://localhost:8000/classify', {
-      text: userMsg
-    });
-    intent = response.data.intent;
-    console.log('🔍 KoBERT 의도:', intent);
-  } catch (err) {
-    console.error('❌ KoBERT 서버 호출 실패:', err.message);
-  }
+    const userMessage = req.body.userRequest.utterance;
+    console.log('🔵 사용자 메시지:', userMessage);
 
-  // 📦 MongoDB에서 intent로 응답 찾기
-  const data = await collection.findOne({ intent });
-  const reply = data
-    ? data.응답
-    : "죄송합니다. 관련 정보를 찾지 못했어요. 담당자에게 연결해드릴까요?";
+    // MongoDB에서 질문예시 배열에 포함되는지 검색
+    const faq = await FaqIntent.findOne({ 질문예시: { $in: [userMessage] } });
 
-  res.json({
-    version: "2.0",
-    template: {
-      outputs: [
-        {
-          simpleText: {
-            text: reply
-          }
+    if (faq) {
+      res.json({
+        version: "2.0",
+        template: {
+          outputs: [
+            {
+              simpleText: {
+                text: faq.응답
+              }
+            }
+          ]
         }
-      ]
+      });
+    } else {
+      res.json({
+        version: "2.0",
+        template: {
+          outputs: [
+            {
+              simpleText: {
+                text: "죄송합니다. 해당 질문에 대한 답변을 찾을 수 없습니다."
+              }
+            }
+          ]
+        }
+      });
     }
-  });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
 });
 
-const port = 3000;
-app.listen(port, () => {
-  console.log(`✅ Node.js 서버 실행중 → http://localhost:${port}`);
+// 서버 실행
+app.listen(PORT, () => {
+  console.log(`✅ Node.js 서버 실행중 → http://localhost:${PORT}`);
 });
